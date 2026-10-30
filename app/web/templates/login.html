@@ -1,0 +1,44 @@
+{% from "_macros.html" import icon, logo %}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="light dark"><title>Sign in · {{ brand }}</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<script src="/static/theme.js?v={{ asset_v() }}"></script>
+<link rel="stylesheet" href="/static/app.css?v={{ asset_v() }}"></head>
+<body class="authbody">
+<div class="auth">
+  <section class="auth-art">
+    <div class="brand"><span class="logo">{{ logo() }}</span><span class="brandtext"><b>{{ brand }}</b><small>{{ brand_tagline or 'Verified lead intelligence' }}</small></span></div>
+    <div class="auth-copy">
+      <div class="eyebrow" style="color:#c4b5fd">Lead intelligence workspace</div>
+      <h1>Every lead verified against official registries.</h1>
+      <p>Find Indian companies that run a company in the U.S., UK, Australia, New Zealand or Europe, confirm both registrations and the link between them, and wake up to a clean, de-duplicated, scored pipeline.</p>
+      <ul class="auth-points">
+        <li>{{ icon('verified', 20) }} MCA plus official overseas registry evidence on every lead</li>
+        <li>{{ icon('spark', 20) }} A / B / C scoring, decision-makers and outreach angles</li>
+        <li>{{ icon('mail', 20) }} Daily report with a 6-sheet Excel workbook</li>
+      </ul>
+    </div>
+    <div class="auth-stats">
+      <div><b>3 gates</b><span>India · U.S. · relationship</span></div>
+      <div><b>0 guesses</b><span>Evidence or it stays queued</span></div>
+      <div><b>Self-hosted</b><span>Your data stays with you</span></div>
+    </div>
+  </section>
+
+  <section class="auth-form">
+    <div class="card">
+      <div class="brand mobile-brand"><span class="logo">{{ logo() }}</span><span class="brandtext"><b>{{ brand }}</b><small>{{ brand_tagline or 'Verified lead intelligence' }}</small></span></div>
+      <h2>Welcome back</h2>
+      <p class="lead">Sign in to your {{ brand }} workspace.</p>
+      {% for kind, msg in flashes %}<div class="flash {{ kind }}" role="status">{{ icon('alert' if kind == 'error' else 'check', 18) }}<span>{{ msg }}</span></div>{% endfor %}
+      <form method="post" action="/login">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="next" value="{{ next }}">
+        <div class="field"><label for="email">Work email</label><input id="email" type="email" name="email" autocomplete="username" placeholder="you@company.com" required autofocus></div>
+        <div class="field"><label for="pw">Password</label><input id="pw" type="password" name="password" autocomplete="current-password" required></div>
+        <button class="btn primary" style="width:100%;min-height:44px;margin-top:4px">Sign in {{ icon('arrow', 16) }}</button>
+      </form>
+      <div class="fine">{{ icon('lock', 14) }} Private workspace · every sign-in is audit-logged</div>
+    </div>
+  </section>
+</div>
+</body></html>

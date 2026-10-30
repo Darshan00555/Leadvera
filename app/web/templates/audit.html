@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% from "_macros.html" import icon %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">{{ icon('audit', 14) }} Administration</div><h1>Audit log</h1><p>Sign-ins, settings changes, exports, edits and run actions (latest 300).</p></div></div>
+<div class="tablewrap"><table class="data">
+  <tr><th>When</th><th>User</th><th>Action</th><th>Target</th><th>Detail</th><th>IP</th></tr>
+  {% for a in rows %}<tr><td class="small">{{ a.at|dt(tzname) }}</td><td class="small">{{ users.get(a.user_id, '—') }}</td><td>{{ a.action }}</td>
+    <td class="small mono">{{ a.target or '' }}</td><td class="small mono wrap" style="max-width:320px">{{ a.detail if a.detail else '' }}</td><td class="small mono">{{ a.ip or '' }}</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

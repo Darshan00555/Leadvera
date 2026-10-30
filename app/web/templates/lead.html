@@ -1,0 +1,99 @@
+{% extends "base.html" %}{% from "_macros.html" import status_badge, pri, urls, icon %}
+{% block title %}{{ lead.indian_brand_name or lead.indian_legal_name or lead.lead_id }}{% endblock %}
+{% block content %}
+{% set titles = {'india': 'Indian entity', 'us': 'Overseas entity · ' ~ J.name(lead.foreign_country or 'US'), 'relationship': 'Relationship evidence', 'company': 'Company', 'contact': 'Decision-makers & contact', 'sales': 'Sales intelligence', 'score': 'Verification & score', 'meta': 'Research record', 'id': 'Identifiers'} %}
+{% set url_fields = ['indian_registry_url', 'indian_website', 'us_registry_url', 'relationship_evidence_urls', 'source_urls', 'email_source_url', 'linkedin_company_url', 'linkedin_decision_maker_url'] %}
+<div class="pagehead">
+  <div style="display:flex;gap:16px;align-items:center;min-width:0">
+    <span class="avatar lg">{{ (lead.indian_brand_name or lead.indian_legal_name or lead.us_llc_legal_name)|initials }}</span>
+    <div style="min-width:0">
+      <div class="eyebrow"><a href="{{ '/leads?status=queue' if lead.verification_status in ('PARTIALLY VERIFIED', 'UNVERIFIED') else '/leads' }}">{{ 'Research queue' if lead.verification_status in ('PARTIALLY VERIFIED', 'UNVERIFIED') else 'Leads' }}</a> <span class="muted">/ {{ lead.lead_id }}</span></div>
+      <h1>{{ lead.indian_brand_name or lead.indian_legal_name or 'Unnamed candidate' }}</h1>
+      <p class="toolbar" style="margin-top:8px">{{ status_badge(lead.verification_status, lead.web_verified_at) }} {% if lead.verification_status == 'VERIFIED' %}{{ pri(lead.priority) }} <span>Score <b>{{ lead.lead_score }}</b>/100</span> <span class="muted">· Confidence {{ lead.confidence_score }}</span>{% endif %}
+        {% if lead.us_llc_legal_name %}<span class="badge plain">{{ icon('building', 13) }} {{ lead.us_llc_legal_name }}{% if lead.us_state %} · {{ lead.us_state }}{% endif %}</span>{% endif %}</p>
+    </div>
+  </div>
+  {% if user.role in ('admin', 'analyst') and lead.verification_status != 'DISQUALIFIED' %}
+  <form method="post" action="/leads/{{ lead.id }}/disqualify" class="toolbar" data-confirm="Disqualify this record? It will move to Exclusions.">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="text" name="reason" placeholder="Reason for disqualifying" style="width:240px;max-width:100%" required>
+    <button class="btn danger">Disqualify</button>
+  </form>
+  {% endif %}
+</div>
+{% if lead.web_verified_at and lead.verification_status != 'VERIFIED' %}<div class="callout info"><b>Web-verified on {{ lead.web_verified_at|dt(tzname) }}:</b>
+  every fact below is cited from public web pages. Check the sources before outreach — it is not yet confirmed on official registries.</div>{% endif %}
+{% if lead.missing_evidence %}<div class="callout"><b>{{ 'Still missing for registry verification' if lead.web_verified_at else 'Missing evidence before this can be verified' }}</b>
+  <ul>{% for m in lead.missing_evidence|evidence_items %}<li>{{ m }}</li>{% endfor %}</ul>
+  {% if lead.next_research_step %}<div style="margin-top:8px"><b>Next research step:</b> {{ lead.next_research_step }}</div>{% endif %}</div>{% endif %}
+
+<div class="grid g32">
+  <div class="stack">
+    {% for g in ['india', 'us', 'relationship', 'company', 'contact'] %}
+    <div class="card"><h2>{{ titles[g] }}</h2>
+      <table class="kv">
+        {% for a, label in groups[g] %}{% set v = lead[a] %}
+        {% if v %}<tr><th>{{ label }}</th><td>{% if a in url_fields %}{{ urls(v) }}{% elif a == 'business_email' %}<a href="mailto:{{ v }}">{{ v }}</a>{% else %}<span class="wrap" style="white-space:pre-line">{{ v }}</span>{% endif %}</td></tr>{% endif %}
+        {% endfor %}
+      </table>
+    </div>
+    {% endfor %}
+    <div class="card"><h2>Research record</h2>
+      <table class="kv">
+        <tr><th>Entity pair key</th><td class="mono">{{ lead.entity_pair_key }}</td></tr>
+        <tr><th>First discovered</th><td>{{ lead.date_first_discovered or '' }}</td></tr>
+        <tr><th>Last checked</th><td>{{ lead.date_last_checked or '' }}</td></tr>
+        <tr><th>Verified at</th><td>{{ lead.verified_at|dt(tzname) }}</td></tr>
+        {% if lead.research_limitations %}<tr><th>Limitations</th><td class="small wrap">{{ lead.research_limitations }}</td></tr>{% endif %}
+      </table>
+    </div>
+    <div class="card"><h2>Change history</h2>
+      {% if history %}<div class="tablewrap"><table class="data small">
+        <tr><th>When</th><th>Field</th><th>Old</th><th>New</th><th>By</th></tr>
+        {% for h in history %}<tr><td class="small">{{ h.at|dt(tzname) }}</td><td>{{ h.field }}</td>
+          <td class="small wrap muted" style="max-width:220px">{{ (h.old_value or '')[:200] }}</td><td class="small wrap" style="max-width:220px">{{ (h.new_value or '')[:200] }}</td>
+          <td class="small">{{ users_by_id[h.user_id].email if h.user_id in users_by_id else ('research run ' ~ h.run_id if h.run_id else 'system') }}</td></tr>{% endfor %}
+      </table></div>{% else %}<div class="muted small">No changes since discovery.</div>{% endif %}
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="card"><h2>Sales</h2>
+      {% if lead.outreach_angle %}<p class="small"><b>Outreach angle:</b> {{ lead.outreach_angle }}</p>{% endif %}
+      {% if lead.bookkeeping_need_signals %}<p class="small"><b>Bookkeeping signals:</b> {{ lead.bookkeeping_need_signals }}</p>{% endif %}
+      <form method="post" action="/leads/{{ lead.id }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <div class="field"><label>Outreach status</label><select name="outreach_status">
+          {% for s in outreach_statuses %}<option {{ 'selected' if lead.outreach_status == s }}>{{ s }}</option>{% endfor %}</select></div>
+        <div class="field"><label>Assigned owner</label><select name="assigned_owner"><option value="">Unassigned</option>
+          {% for u in users %}<option value="{{ u.email }}" {{ 'selected' if lead.assigned_owner == u.email }}>{{ u.name or u.email }}</option>{% endfor %}
+          {% if lead.assigned_owner and lead.assigned_owner not in users|map(attribute='email')|list %}<option selected>{{ lead.assigned_owner }}</option>{% endif %}</select></div>
+        <div class="field"><label>Next sales action</label><input type="text" name="next_sales_action" value="{{ lead.next_sales_action or '' }}"></div>
+        <div class="field"><label>Notes</label><textarea name="notes">{{ lead.notes or '' }}</textarea></div>
+        <button class="btn primary">Save</button>
+        <div class="hint">These fields are never overwritten by the research engine.</div>
+      </form>
+    </div>
+    {% if pipe %}
+    <div class="card"><h2>Pipeline</h2>
+      <form method="post" action="/pipeline/{{ pipe.id }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="back" value="/leads/{{ lead.id }}">
+        <div class="field"><label>Stage</label><select name="opportunity_stage">{% for s in stages %}<option {{ 'selected' if pipe.opportunity_stage == s }}>{{ s }}</option>{% endfor %}</select></div>
+        <div class="row">
+          <div class="field"><label>Outreach date</label><input type="date" name="outreach_date" value="{{ pipe.outreach_date or '' }}"></div>
+          <div class="field"><label>Channel</label><select name="channel"><option value=""></option>{% for c in ['Email', 'LinkedIn', 'Phone', 'Referral', 'Event', 'Other'] %}<option {{ 'selected' if pipe.channel == c }}>{{ c }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Last contact</label><input type="date" name="last_contact" value="{{ pipe.last_contact or '' }}"></div>
+          <div class="field"><label>Next follow-up</label><input type="date" name="next_follow_up" value="{{ pipe.next_follow_up or '' }}"></div>
+          <div class="field"><label>Est. MRR (USD)</label><input type="number" step="0.01" min="0" name="est_mrr_usd" value="{{ pipe.est_mrr_usd or '' }}"></div>
+        </div>
+        <div class="field"><label class="check"><input type="checkbox" name="meeting_booked" {{ 'checked' if pipe.meeting_booked }}> Meeting booked</label></div>
+        <div class="field"><label>Response</label><textarea name="response">{{ pipe.response or '' }}</textarea></div>
+        <div class="field"><label>Outcome</label><input type="text" name="actual_outcome" value="{{ pipe.actual_outcome or '' }}"></div>
+        <input type="hidden" name="lead_owner" value="{{ pipe.lead_owner or lead.assigned_owner or '' }}">
+        <button class="btn primary">Save pipeline</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+[Unit]
+Description=Leadvera (research worker + scheduler)
+After=network.target postgresql.service
+
+[Service]
+User=afportal
+WorkingDirectory=/opt/afportal
+EnvironmentFile=/opt/afportal/.env
+ExecStart=/opt/afportal/venv/bin/python -m app.worker
+Restart=always
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

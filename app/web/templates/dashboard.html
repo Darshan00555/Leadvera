@@ -1,0 +1,144 @@
+{% extends "base.html" %}{% from "_macros.html" import run_badge, pri, score, icon, empty, market_badge %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+{% set h = now.hour %}
+{% set first = (user.name or user.email.split('@')[0]).split()[0] %}
+<section class="hero">
+  <div>
+    <div class="eyebrow">{{ icon('calendar', 14) }} {{ now.strftime('%A, %d %B %Y') }}</div>
+    <h1>Good {{ 'morning' if h < 12 else ('afternoon' if h < 17 else 'evening') }}, {{ first }}</h1>
+    <p>{% if settings.schedule_enabled %}Research starts at <b>{{ settings.research_start_time }}</b> and your report lands at <b>{{ settings.report_time }}</b> ({{ settings.timezone }}).{% else %}The daily schedule is paused — runs only start when you trigger them.{% endif %}
+      Only records confirmed on official registries are counted as leads.</p>
+    <div class="chips">
+      <span class="chip">{{ icon('verified', 14) }} {{ total }} verified</span>
+      <span class="chip">{{ icon('globe', 14) }} {{ web_total }} web-verified</span>
+      <span class="chip">{{ icon('queue', 14) }} {{ queue }} in research queue</span>
+      <span class="chip">{{ icon('globe', 14) }} {% for c in J.expand_markets(settings.target_markets or ['US'])[:4] %}{{ 'UK' if c == 'GB' else c }}{{ ' · ' if not loop.last }}{% endfor %}{% if J.expand_markets(settings.target_markets or ['US'])|length > 4 %} +{{ J.expand_markets(settings.target_markets)|length - 4 }}{% endif %}</span>
+      <span class="chip">{{ icon('bolt', 14) }} {{ 'Claude subscription' if settings.research_backend != 'api' else 'Anthropic API' }}</span>
+    </div>
+  </div>
+  {% if user.role in ('admin', 'analyst') %}
+  <div class="toolbar">
+    <a class="btn" href="/export/workbook.xlsx">{{ icon('download', 16) }} Excel workbook</a>
+    <a class="btn primary" href="/runs/new">{{ icon('play', 15) }} Run research now</a>
+  </div>
+  {% endif %}
+</section>
+
+{% if user.role == 'admin' and not (setup.smtp and setup.recipients and setup.api_key) %}
+<div class="callout"><b>Finish setup before the next scheduled run</b>
+  <ul>
+    {% if not setup.api_key %}<li>{% if setup.backend == 'api' %}Add the Anthropic API key{% else %}Connect your Claude Pro/Max subscription (paste the token from <code>claude setup-token</code>){% endif %} — <a href="/settings?tab=research">Settings → Research engine</a></li>{% endif %}
+    {% if not setup.smtp %}<li>Configure outgoing email (SMTP) — <a href="/settings?tab=email">Settings → Email</a></li>{% endif %}
+    {% if not setup.recipients %}<li>Add report recipients — <a href="/settings?tab=email">Settings → Email</a></li>{% endif %}
+  </ul></div>
+{% endif %}
+
+<div class="grid g4">
+  <div class="card tile">
+    <div class="head"><span class="label">Verified leads</span><span class="ic good">{{ icon('verified', 19) }}</span></div>
+    <div class="value">{{ '{:,}'.format(total) }}</div>
+    <div class="meter" aria-hidden="true"><span style="width:{{ [100, (today_new / (target or 1) * 100)]|min|round(1) }}%"></span></div>
+    <div class="sub">{{ today_new }} today · daily lead limit {{ target }} · registry-confirmed</div>
+  </div>
+  <div class="card tile">
+    <div class="head"><span class="label">Web-verified leads</span><span class="ic">{{ icon('globe', 19) }}</span></div>
+    <div class="value">{{ '{:,}'.format(web_total) }}</div>
+    <div class="sub"><a href="/leads?status=web">Cited online · ready to work →</a></div>
+  </div>
+  <div class="card tile">
+    <div class="head"><span class="label">Research queue</span><span class="ic warn">{{ icon('queue', 19) }}</span></div>
+    <div class="value">{{ queue }}</div>
+    <div class="sub"><a href="/leads?status=queue">Awaiting registry evidence →</a></div>
+  </div>
+  <div class="card tile">
+    <div class="head"><span class="label">Last run</span><span class="ic info">{{ icon('runs', 19) }}</span></div>
+    <div class="value" style="font-size:18px;margin-top:14px">{% if last %}<a href="/runs/{{ last.id }}">#{{ last.id }}</a> {{ run_badge(last.status) }}{% else %}<span class="muted">None yet</span>{% endif %}</div>
+    <div class="sub">{% if last %}{{ last.started_at|dt(tzname) or last.created_at|dt(tzname) }}{% if (last.stats or {}).get('stop_reason') %} · {{ (last.stats or {}).get('stop_reason')|truncate(46) }}{% endif %}{% else %}First run starts at {{ settings.research_start_time }}{% endif %}</div>
+  </div>
+</div>
+
+<div class="grid g32 top" style="margin-top:18px">
+  <div class="card chart">
+    <div class="card-head"><div><h2>New verified leads per run</h2><div class="small muted">Last {{ bars.bars|length }} runs · click a bar to open the run</div></div>
+      <a class="btn sm" href="/runs">All runs {{ icon('arrow', 14) }}</a></div>
+    {% if bars.bars %}
+    <svg viewBox="0 0 {{ bars.width }} {{ bars.height }}" role="img" aria-label="Column chart of new verified leads for the last {{ bars.bars|length }} runs">
+      {% for g in bars.grid %}
+        <line class="gridline" x1="{{ bars.pad_l }}" x2="{{ bars.width - 8 }}" y1="{{ g.y }}" y2="{{ g.y }}"/>
+        <text class="axis" x="{{ bars.pad_l - 6 }}" y="{{ g.y + 4 }}" text-anchor="end">{{ g.label }}</text>
+      {% endfor %}
+      {% for b in bars.bars %}
+      <g>
+        <a href="/runs/{{ b.id }}">
+        <rect class="hit" x="{{ b.slot_x }}" y="{{ bars.pad_t }}" width="{{ b.slot_w }}" height="{{ bars.base - bars.pad_t }}" tabindex="0"
+              data-tip="{{ b.label }} · {{ b.value }} new verified · run {{ b.id }} {{ b.status }}"/>
+        {% if b.path %}<path class="bar" d="{{ b.path }}" pointer-events="none"/>{% endif %}
+        </a>
+        {% if b.show_label and b.value %}<text class="val" x="{{ b.cx }}" y="{{ b.y - 5 }}" text-anchor="middle" pointer-events="none">{{ b.value }}</text>{% endif %}
+        {% if b.status == 'failed' %}<text class="flag" x="{{ b.cx }}" y="{{ bars.base - 4 }}" text-anchor="middle" pointer-events="none">✕</text>{% endif %}
+        {% if loop.index0 % 2 == 0 or loop.last %}<text class="axis" x="{{ b.cx }}" y="{{ bars.base + 16 }}" text-anchor="middle">{{ b.label }}</text>{% endif %}
+      </g>
+      {% endfor %}
+    </svg>
+    <div class="small muted" style="margin-top:6px">✕ marks a failed run.</div>
+    <details class="tableview"><summary>View as table</summary>
+      <table class="data" style="margin-top:8px"><tr><th>Run</th><th>Date</th><th>Status</th><th class="num">New verified</th></tr>
+      {% for b in bars.bars|reverse %}<tr><td><a href="/runs/{{ b.id }}">#{{ b.id }}</a></td><td>{{ b.label }}</td><td>{{ b.status }}</td><td class="num">{{ b.value }}</td></tr>{% endfor %}
+      </table></details>
+    {% else %}<div class="empty"><div class="ic">{{ icon('trend', 24) }}</div><b>No runs yet</b><div class="small">The first scheduled run starts at {{ settings.research_start_time }}.</div></div>{% endif %}
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <div class="card-head"><h2>Sales pipeline</h2><a class="small" href="/pipeline">Open →</a></div>
+      {% set stage_list = ['New', 'Contacted', 'Engaged', 'Meeting Booked', 'Proposal Sent', 'Won', 'Lost'] %}
+      {% set smax = [stages.values()|max if stages else 0, 1]|max %}
+      <div class="funnel">
+        {% for st in stage_list %}{% set n = stages.get(st, 0) %}
+        <a href="/pipeline?stage={{ st|urlencode }}"><span style="text-align:left;font-weight:550;color:inherit">{{ st }}</span><i><b style="width:{{ (n / smax * 100)|round(1) }}%"></b></i><span>{{ n }}</span></a>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Follow-ups due</h2><span class="badge plain">7 days</span></div>
+      {% if followups %}<div class="list">
+        {% for p, l in followups %}
+        <div class="item"><span class="avatar co">{{ (l.indian_brand_name or l.indian_legal_name)|initials }}</span>
+          <div style="min-width:0;flex:1"><a href="/leads/{{ l.id }}" style="font-weight:600">{{ l.indian_brand_name or l.indian_legal_name }}</a><div class="small muted">{{ p.lead_owner or 'Unassigned' }}</div></div>
+          <span class="badge {{ 'bad' if p.next_follow_up < now.date() else 'info' }}">{{ p.next_follow_up.strftime('%d %b') }}</span></div>
+        {% endfor %}</div>
+      {% else %}<div class="small muted">Nothing due this week.</div>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="grid g32 top" style="margin-top:18px">
+  <div class="card">
+    {% set show_web = not recent and recent_web %}
+    {% if show_web %}{% set recent = recent_web %}{% endif %}
+    <div class="card-head"><div><h2>{{ 'Latest web-verified leads' if show_web else 'Latest verified leads' }}</h2><div class="small muted">{{ 'Every fact cited online · not yet registry-confirmed' if show_web else 'Newest first · all three verification gates passed' }}</div></div><a class="btn sm" href="{{ '/leads?status=web' if show_web else '/leads?sort=newest' }}">All leads {{ icon('arrow', 14) }}</a></div>
+    {% if recent %}
+    <div class="tablewrap"><table class="data">
+      <tr><th>Pri</th><th>Company</th><th>Overseas entity</th><th>Score</th><th>Decision-maker</th></tr>
+      {% for l in recent %}
+      <tr><td>{{ pri(l.priority) }}</td>
+        <td><div class="cell-co"><span class="avatar co">{{ (l.indian_brand_name or l.indian_legal_name)|initials }}</span><div><a href="/leads/{{ l.id }}">{{ l.indian_brand_name or l.indian_legal_name }}</a><div class="muted small">{{ l.industry or '' }}</div></div></div></td>
+        <td>{{ l.us_llc_legal_name }} {{ market_badge(l.foreign_country) }}{% if l.us_state %} <span class="muted">{{ l.us_state }}</span>{% endif %}</td>
+        <td>{{ score(l.lead_score) }}</td>
+        <td>{{ l.decision_maker_name or l.founder_ceo_name or '—' }}<div class="muted small">{{ l.decision_maker_title or '' }}</div></td></tr>
+      {% endfor %}
+    </table></div>
+    {% else %}<div class="empty" style="padding:30px 10px"><div class="ic">{{ icon('verified', 24) }}</div><b>No verified leads yet</b><div class="small">Candidates appear in the <a href="/leads?status=queue">research queue</a> until both registrations and their link are confirmed.</div></div>{% endif %}
+  </div>
+  <div class="card">
+    <h2>How a lead gets verified</h2>
+    <ol class="steps">
+      <li><span><b>Indian entity</b>CIN / LLPIN confirmed on MCA or data.gov.in</span></li>
+      <li><span><b>Overseas entity</b>U.S. LLC, UK Ltd, Pty Ltd, GmbH… on that country's official register</span></li>
+      <li><span><b>Relationship</b>A cited source ties the two entities together</span></li>
+      <li><span><b>Scored &amp; de-duplicated</b>A / B / C priority, then into your pipeline</span></li>
+    </ol>
+  </div>
+</div>
+{% endblock %}

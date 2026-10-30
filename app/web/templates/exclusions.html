@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% from "_macros.html" import icon, urls, pager %}
+{% block title %}Exclusions & duplicates{% endblock %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">{{ icon('exclusions', 14) }} Research</div><h1>Exclusions &amp; duplicates</h1><p>Disqualified candidates and possible duplicates flagged for review.</p></div></div>
+<form class="filters" method="get">
+  <select name="type" aria-label="Type"><option value="">All types</option>
+    {% for t in ['Possible Duplicate - Review', 'Disqualified'] %}<option {{ 'selected' if f.type == t }}>{{ t }}</option>{% endfor %}</select>
+  <select name="show" aria-label="Show"><option value="open" {{ 'selected' if f.show == 'open' }}>Open only</option><option value="all" {{ 'selected' if f.show == 'all' }}>Include resolved</option></select>
+  <button class="btn">Apply</button>
+</form>
+{% if rows %}
+<div class="tablewrap"><table class="data">
+  <tr><th>ID</th><th>Date</th><th>Type</th><th>Candidate</th><th>Identifiers</th><th>Reason</th><th>Canonical</th><th>Sources</th><th></th></tr>
+  {% for x in rows %}
+  <tr><td class="mono small">EX-{{ '%06d'|format(x.id) }}</td><td class="small">{{ x.date }}</td>
+    <td><span class="badge {{ 'warn' if 'Duplicate' in x.type else 'bad' }}">{{ x.type }}</span></td>
+    <td>{{ x.candidate_name or '' }}<div class="muted small">{{ x.domain or '' }}</div></td>
+    <td class="small mono">{{ x.cin_llpin or '' }}<br>{{ x.us_state or '' }} {{ x.us_entity_number or '' }}</td>
+    <td class="small wrap" style="max-width:320px">{{ x.reason }}</td>
+    <td>{% if x.canonical_lead_id in lead_pks %}<a class="mono small" href="/leads/{{ lead_pks[x.canonical_lead_id] }}">{{ x.canonical_lead_id }}</a>{% else %}<span class="mono small">{{ x.canonical_lead_id or '' }}</span>{% endif %}</td>
+    <td style="max-width:260px">{{ urls(x.source_urls) }}</td>
+    <td>{% if not x.resolved %}<form method="post" action="/exclusions/{{ x.id }}/resolve"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn sm">Mark reviewed</button></form>{% else %}<span class="muted small">reviewed</span>{% endif %}</td></tr>
+  {% endfor %}
+</table></div>
+{{ pager(page, pages, 'type=' ~ (f.type|urlencode) ~ '&show=' ~ f.show) }}
+{% else %}<div class="card empty"><div class="ic">{{ icon('exclusions', 24) }}</div>Nothing to review.</div>{% endif %}
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}{% from "_macros.html" import status_badge, pri, pager, score, icon, empty, market_badge %}
+{% set is_web = f.status == 'web' %}
+{% set is_queue = f.status in ('queue', 'web') %}
+{% block title %}{{ 'Web-verified leads' if is_web else ('Research queue' if is_queue else 'Leads') }}{% endblock %}
+{% block content %}
+{% set args = 'status=' ~ f.status ~ '&q=' ~ (f.q|urlencode) ~ '&priority=' ~ f.priority ~ '&us_state=' ~ f.us_state ~ '&owner=' ~ (f.owner|urlencode) ~ '&outreach=' ~ (f.outreach|urlencode) ~ '&since=' ~ f.since ~ '&sort=' ~ f.sort ~ '&market=' ~ f.market %}
+<div class="pagehead">
+  <div><div class="eyebrow">{{ icon('globe' if is_web else ('queue' if is_queue else 'verified'), 14) }} {{ 'Evidence found online' if is_web else ('Awaiting evidence' if is_queue else 'Lead database') }}</div>
+    <h1>{{ 'Web-verified leads' if is_web else ('Research queue' if is_queue else 'Leads') }}</h1>
+    <p>{{ '{:,}'.format(total) }} {{ 'leads with every fact cited from public web pages — ready to work, not yet registry-confirmed' if is_web else ('candidates still missing evidence' if is_queue else ('verified leads' if f.status == 'VERIFIED' else 'records')) }}</p></div>
+  {% if user.role in ('admin', 'analyst') %}<a class="btn" href="/export/leads.csv?{{ args }}">{{ icon('download', 16) }} Export CSV</a>{% endif %}
+</div>
+{% if is_web %}
+<div class="callout info"><b>What “web-verified” means:</b> the Indian company's legal name and CIN, the overseas company's exact
+  legal name and a page linking the two were all found and cited online. Official registries (MCA, U.S. Secretaries of State…)
+  could not be opened automatically, so these are not counted as Verified — each run keeps trying, and promotes them the moment
+  registry evidence is found. Check the cited sources before outreach.</div>
+{% elif is_queue %}
+<div class="callout info"><b>Why are these in the queue?</b> A candidate becomes a verified lead only when the Indian company, the U.S. LLC
+  <i>and</i> the link between them are all confirmed on official sources. Every run revisits queue items automatically and promotes them
+  the moment the missing evidence is found. Registries that demand a CAPTCHA (e.g. Wyoming, Delaware) are never bypassed — they are recorded as limitations.</div>
+{% endif %}
+<form class="filters" method="get">
+  <input type="text" name="q" value="{{ f.q }}" placeholder="Search company, CIN, LLC, person, domain…" aria-label="Search">
+  <select name="status" aria-label="Status">
+    {% for v, l in [('VERIFIED','Verified'), ('web','Web-verified'), ('queue','Research queue'), ('PARTIALLY VERIFIED','Partially verified'), ('UNVERIFIED','Unverified'), ('DISQUALIFIED','Disqualified'), ('','All statuses')] %}
+    <option value="{{ v }}" {{ 'selected' if f.status == v }}>{{ l }}</option>{% endfor %}
+  </select>
+  <select name="priority" aria-label="Priority"><option value="">Any priority</option>
+    {% for p in 'ABC' %}<option {{ 'selected' if f.priority == p }}>{{ p }}</option>{% endfor %}</select>
+  <select name="market" aria-label="Country of the overseas entity"><option value="">Any country</option>
+    {% for m in markets %}<option value="{{ m }}" {{ 'selected' if f.market == m }}>{{ J.name(m) }}</option>{% endfor %}</select>
+  <select name="us_state" aria-label="US state"><option value="">Any US state</option>
+    {% for s in states %}<option {{ 'selected' if f.us_state == s }}>{{ s }}</option>{% endfor %}</select>
+  <select name="outreach" aria-label="Outreach status"><option value="">Any outreach</option>
+    {% for s in outreach_statuses %}<option {{ 'selected' if f.outreach == s }}>{{ s }}</option>{% endfor %}</select>
+  <select name="owner" aria-label="Owner"><option value="">Any owner</option>
+    {% for o in owners %}<option {{ 'selected' if f.owner == o }}>{{ o }}</option>{% endfor %}</select>
+  <input type="date" name="since" value="{{ f.since }}" aria-label="Discovered since">
+  <select name="sort" aria-label="Sort">
+    {% for v, l in [('score','Highest score'), ('newest','Newest'), ('checked','Recently checked'), ('name','Name')] %}
+    <option value="{{ v }}" {{ 'selected' if f.sort == v }}>{{ l }}</option>{% endfor %}</select>
+  <button class="btn primary">{{ icon('search', 15) }} Apply</button>
+</form>
+{% if rows %}
+<div class="tablewrap"><table class="data">
+  <tr>
+    <th>Lead</th><th>Status</th>{% if not is_queue %}<th>Pri</th><th>Score</th>{% endif %}
+    <th>Indian company</th><th>Overseas entity</th>
+    {% if is_queue %}<th>{{ 'Still missing for registry verification' if is_web else 'Missing evidence' }}</th><th class="num">Revisits</th>{% else %}<th>Decision-maker</th><th>Outreach</th><th>Owner</th>{% endif %}
+    <th>Discovered</th>
+  </tr>
+  {% for l in rows %}
+  <tr>
+    <td><a class="mono small" href="/leads/{{ l.id }}">{{ l.lead_id }}</a></td>
+    <td>{{ status_badge(l.verification_status, l.web_verified_at) }}</td>
+    {% if not is_queue %}<td>{{ pri(l.priority) }}</td><td>{{ score(l.lead_score) }}</td>{% endif %}
+    <td><div class="cell-co"><span class="avatar co">{{ (l.indian_brand_name or l.indian_legal_name or l.us_llc_legal_name)|initials }}</span>
+      <div><a href="/leads/{{ l.id }}">{{ l.indian_brand_name or l.indian_legal_name or 'Unnamed candidate' }}</a>
+      <div class="muted small mono">{{ l.cin_llpin or 'CIN not found yet' }}</div></div></div></td>
+    <td style="min-width:160px">{{ l.us_llc_legal_name or '—' }}<div style="margin-top:4px">{{ market_badge(l.foreign_country) }}{% if l.us_state %} <span class="badge plain">{{ l.us_state }}</span>{% endif %}</div></td>
+    {% if is_queue %}
+      <td style="min-width:300px;max-width:460px"><ul class="evidence">{% for m in l.missing_evidence|evidence_items %}<li>{{ m }}</li>{% endfor %}</ul></td><td class="num">{{ l.times_revisited or 0 }}</td>
+    {% else %}
+      <td>{{ l.decision_maker_name or l.founder_ceo_name or '' }}<div class="muted small">{{ l.decision_maker_title or '' }}</div></td>
+      <td><span class="badge">{{ l.outreach_status or 'Not Contacted' }}</span></td><td>{{ l.assigned_owner or '' }}</td>
+    {% endif %}
+    <td class="small">{{ l.date_first_discovered or '' }}</td>
+  </tr>
+  {% endfor %}
+</table></div>
+{{ pager(page, pages, args) }}
+{% else %}{{ empty('search', 'No records match these filters', 'Try clearing a filter or searching by CIN, LLC name or domain.') }}{% endif %}
+{% endblock %}

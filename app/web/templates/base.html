@@ -1,0 +1,103 @@
+{% from "_macros.html" import icon, logo %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="color-scheme" content="light dark">
+<title>{% block title %}Workspace{% endblock %} · {{ brand }}</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<script src="/static/theme.js?v={{ asset_v() }}"></script>
+<link rel="stylesheet" href="/static/app.css?v={{ asset_v() }}">
+</head>
+<body>
+{% set path = request.url.path %}
+{% set qstatus = request.query_params.get('status') %}
+{% set is_staff = user and user.role in ('admin', 'analyst') %}
+<input type="checkbox" id="navtoggle" class="navtoggle" aria-hidden="true" tabindex="-1">
+<div class="shell">
+  <aside class="side" aria-label="Sidebar">
+    <a class="brand" href="/">
+      <span class="logo">{{ logo() }}</span>
+      <span class="brandtext"><b>{{ brand }}</b><small>{{ brand_tagline or 'Verified lead intelligence' }}</small></span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <div class="sep">Workspace</div>
+      {% for href, label, ic, on in [
+          ('/', 'Dashboard', 'dashboard', path == '/'),
+          ('/leads', 'Verified leads', 'verified', path.startswith('/leads') and qstatus not in ('queue', 'web')),
+          ('/leads?status=web', 'Web-verified leads', 'globe', qstatus == 'web'),
+          ('/leads?status=queue', 'Research queue', 'queue', qstatus == 'queue'),
+          ('/pipeline', 'Sales pipeline', 'pipeline', path.startswith('/pipeline'))] %}
+      <a href="{{ href }}" class="{{ 'active' if on }}"{% if on %} aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
+      {% endfor %}
+      {% if is_staff %}
+      <div class="sep">Research</div>
+      {% for href, label, ic in [('/runs', 'Runs & reports', 'runs'), ('/exclusions', 'Exclusions & duplicates', 'exclusions'),
+                                 ('/coverage', 'Research coverage', 'coverage'), ('/email-log', 'Email log', 'mail')] %}
+      {% set on = path.startswith(href) %}
+      <a href="{{ href }}" class="{{ 'active' if on }}"{% if on %} aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
+      {% endfor %}
+      {% endif %}
+      {% if user and user.role == 'admin' %}
+      <div class="sep">Administration</div>
+      {% for href, label, ic in [('/settings', 'Settings', 'settings'), ('/users', 'Users & roles', 'users'), ('/audit', 'Audit log', 'audit')] %}
+      {% set on = path.startswith(href) %}
+      <a href="{{ href }}" class="{{ 'active' if on }}"{% if on %} aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ label }}</span></a>
+      {% endfor %}
+      {% endif %}
+    </nav>
+    <div class="side-foot">
+      <div class="focus-card">
+        <div class="eyebrow">Research focus</div>
+        <b>India → US · UK · AU · NZ · EU</b>
+        <span><span class="dot"></span>Registry-verified leads only</span>
+      </div>
+    </div>
+  </aside>
+  <label for="navtoggle" class="scrim" aria-hidden="true"></label>
+
+  <div class="content">
+    <header class="topbar">
+      <label for="navtoggle" class="iconbtn menu-btn" role="button" aria-label="Open navigation">{{ icon('menu', 20) }}</label>
+      {% if user %}
+      <form class="search" action="/leads" method="get" role="search">
+        {{ icon('search', 17) }}
+        <input type="search" name="q" placeholder="Search companies, CIN, LLCs, people…" aria-label="Search all records" data-search>
+        <input type="hidden" name="status" value="">
+        <kbd>/</kbd>
+      </form>
+      {% endif %}
+      <div class="topbar-actions">
+        <button type="button" class="iconbtn" data-theme-toggle aria-label="Switch light / dark theme" title="Switch theme">{{ icon('moon', 18) }}{{ icon('sun', 18) }}</button>
+        {% if is_staff %}
+        <a class="btn primary runbtn" href="/runs/new" title="Choose a focus and start a research run">{{ icon('play', 15) }}<span>Run research</span></a>
+        {% endif %}
+        {% if user %}
+        <details class="usermenu">
+          <summary aria-label="Account menu"><span class="avatar">{{ (user.name or user.email)|initials }}</span>
+            <span class="who"><b>{{ user.name or user.email }}</b><small>{{ user.role }}</small></span></summary>
+          <div class="menu">
+            <div class="menu-head">Signed in as<br><b style="color:var(--text)">{{ user.email }}</b></div>
+            <a href="/account">{{ icon('user', 16) }} Account &amp; password</a>
+            {% if user.role == 'admin' %}<a href="/settings">{{ icon('settings', 16) }} Workspace settings</a>{% endif %}
+            <form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button>{{ icon('logout', 16) }} Sign out</button></form>
+          </div>
+        </details>
+        {% endif %}
+      </div>
+    </header>
+
+    <main class="main" id="main">
+      {% for kind, msg in flashes %}<div class="flash {{ kind }}" role="status">{{ icon('alert' if kind == 'error' else 'check', 18) }}<span>{{ msg }}</span></div>{% endfor %}
+      {% block content %}{% endblock %}
+      <footer class="foot">
+        <span>{{ brand }} · only records confirmed on official registries count as leads</span>
+        <span>Times shown in {{ tzname }}</span>
+      </footer>
+    </main>
+  </div>
+</div>
+<script src="/static/app.js?v={{ asset_v() }}" defer></script>
+</body>
+</html>

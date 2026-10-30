@@ -1,0 +1,18 @@
+{% extends "base.html" %}{% from "_macros.html" import run_badge, pager, icon, empty %}
+{% block title %}Runs{% endblock %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">{{ icon('runs', 14) }} Research</div><h1>Runs &amp; daily reports</h1><p>Each run's full log, metrics, cost and the emailed report.</p></div>
+  <a class="btn primary" href="/runs/new">{{ icon('play', 15) }} Run research now</a></div>
+{% if rows %}
+<div class="tablewrap"><table class="data">
+  <tr><th>Run</th><th>Date</th><th>Trigger</th><th>Status</th><th class="num">Candidates</th><th class="num">New verified</th><th class="num">Queued</th><th class="num">Duplicates</th><th class="num">Cost</th><th>Report emailed</th></tr>
+  {% for r in rows %}{% set s = r.stats or {} %}
+  <tr><td><a href="/runs/{{ r.id }}">#{{ r.id }}</a></td><td>{{ r.run_date }}</td><td><span class="badge plain">{{ r.trigger|capitalize }}</span>{% if r.targets %}<div class="small muted clip" style="max-width:220px;margin-top:4px" title="{{ r.targets|describe_targets }}">{{ r.targets|describe_targets }}</div>{% endif %}</td><td>{{ run_badge(r.status) }}{% if s.get('stop_reason') %}<div class="small muted clip" style="max-width:260px;margin-top:4px" title="{{ s.get('stop_reason') }}">{{ s.get('stop_reason') }}</div>{% endif %}</td>
+    <td class="num">{{ s.get('candidates', 0) }}</td><td class="num"><b>{{ s.get('new_verified', 0) }}</b></td>
+    <td class="num">{{ s.get('partial', 0) + s.get('unverified', 0) }}</td><td class="num">{{ s.get('duplicates', 0) }}</td>
+    <td class="num">${{ '%.2f'|format(r.cost_usd or 0) }}</td><td class="small">{{ r.report_sent_at|dt(tzname) or '—' }}</td></tr>
+  {% endfor %}
+</table></div>
+{{ pager(page, pages, '') }}
+{% else %}{{ empty('runs', 'No runs yet', 'Start one with “Run research now”, or wait for the daily schedule.') }}{% endif %}
+{% endblock %}

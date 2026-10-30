@@ -1,0 +1,53 @@
+# Local stack for your own computer: Postgres + web portal + worker. No domain or HTTPS needed.
+# Start with start-local.ps1 (Windows) or ./start-local.sh (Mac/Linux), which create .env.local for you.
+#   Portal: http://localhost:8000   (change with PORT=... in .env.local)
+name: afportal-local
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: afportal
+      POSTGRES_USER: afportal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run the start-local script first}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afportal -d afportal"]
+      interval: 5s
+      retries: 20
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env.local
+    environment:
+      DATABASE_URL: postgresql+psycopg://afportal:${POSTGRES_PASSWORD}@db:5432/afportal
+      BASE_URL: http://localhost:${PORT:-8000}
+      COOKIE_SECURE: "false"
+    ports:
+      - "127.0.0.1:${PORT:-8000}:8000"
+    depends_on:
+      db: { condition: service_healthy }
+    volumes:
+      - appdata:/data
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    env_file: .env.local
+    environment:
+      DATABASE_URL: postgresql+psycopg://afportal:${POSTGRES_PASSWORD}@db:5432/afportal
+      BASE_URL: http://localhost:${PORT:-8000}
+    depends_on:
+      db: { condition: service_healthy }
+    volumes:
+      - appdata:/data
+    healthcheck:
+      disable: true
+
+volumes:
+  pgdata:
+  appdata:

@@ -1,0 +1,19 @@
+{% extends "base.html" %}{% from "_macros.html" import icon %}
+{% block title %}Research coverage{% endblock %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">{{ icon('coverage', 14) }} Research</div><h1>Research coverage</h1><p>Which industries, U.S. states and query patterns have been researched, and what they yielded. The planner rotates to the least-recently covered combinations each day.</p></div></div>
+<div class="card"><h2>By industry × country / U.S. state</h2>
+  {% if agg %}<div class="tablewrap"><table class="data">
+    <tr><th>Industry</th><th>Country</th><th>US state</th><th class="num">Assignments</th><th class="num">Queries</th><th class="num">Candidates</th><th class="num">Verified</th><th class="num">Verified / assignment</th><th>Last covered</th></tr>
+    {% for ind, mk, st, n, q, c, v, last in agg %}
+    <tr><td>{{ ind }}</td><td>{{ J.name(mk or 'US') }}</td><td>{{ st or '—' }}</td><td class="num">{{ n }}</td><td class="num">{{ q or 0 }}</td><td class="num">{{ c or 0 }}</td><td class="num"><b>{{ v or 0 }}</b></td><td class="num">{{ '%.1f'|format((v or 0) / n) }}</td><td class="small">{{ last }}</td></tr>
+    {% endfor %}
+  </table></div>{% else %}<div class="empty">No research yet.</div>{% endif %}
+</div>
+<div class="card"><h2>Recent assignments</h2>
+  {% if recent %}<div class="tablewrap"><table class="data">
+    <tr><th>Date</th><th>Assignment</th><th>Indian state</th><th class="num">Queries</th><th class="num">Candidates</th><th class="num">Verified</th><th>Run</th></tr>
+    {% for c in recent %}<tr><td class="small">{{ c.date }}</td><td class="mono small">{{ c.query_group }}</td><td>{{ c.indian_state or '' }}</td><td class="num">{{ c.queries_run }}</td><td class="num">{{ c.candidates_yielded }}</td><td class="num">{{ c.verified_yielded }}</td><td><a href="/runs/{{ c.run_id }}">#{{ c.run_id }}</a></td></tr>{% endfor %}
+  </table></div>{% else %}<div class="empty">None.</div>{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+# Runtime dependencies (versions the test suite was run with)
+anthropic==2.3.0
+mcp==2.3.0
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+SQLAlchemy==2.1.6
+psycopg[binary]==3.3.6
+Jinja2==3.1.6
+python-multipart==0.0.32
+itsdangerous==2.2.0
+cryptography==50.0.1
+openpyxl==3.1.5
+requests==2.34.2
+beautifulsoup4==4.15.0
+tzdata==2026.5
+google-genai>=2.0.0

@@ -1,0 +1,82 @@
+{% extends "base.html" %}{% from "_macros.html" import icon, pick, market_picker, place_picker %}
+{% block title %}Launch research{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div><div class="eyebrow"><a href="/runs">Runs &amp; reports</a> <span class="muted">/ new</span></div>
+    <h1>Launch a research run</h1>
+    <p>Point the research at exactly the companies you want. A narrow focus means fewer, sharper assignments — so each run uses less of your Claude plan.</p></div>
+</div>
+
+{% if busy %}<div class="callout"><b>A run is already queued or in progress.</b> You can prepare the next one, but it can only start once <a href="/runs/{{ busy.id }}">run #{{ busy.id }}</a> finishes.</div>{% endif %}
+
+<div class="grid g32 top">
+  <form method="post" action="/runs" class="card">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="custom" value="1">
+
+    <section class="formblock">
+      <h2><span class="num">1</span> Where is the overseas company registered?</h2>
+      <p>Indian companies that also run a company in these countries. Each one is verified on that country's official register.</p>
+      {{ market_picker('markets', s.target_markets) }}
+      <div class="field" style="margin-top:16px;max-width:520px"><label for="us_states">U.S. states (only used when United States is chosen)</label>
+        <input id="us_states" type="text" name="us_states" value="{{ s.us_states|join(', ') }}" placeholder="WY, DE, FL">
+        <div class="hint">Two-letter codes. Fewer states = more focused searches.</div></div>
+    </section>
+
+    <section class="formblock">
+      <h2><span class="num">2</span> Indian focus</h2>
+      <p>Only companies headquartered or registered here are researched. Leave everything unticked to use your saved defaults ({{ s.indian_states|length }} locations).</p>
+      {{ place_picker('locations', []) }}
+    </section>
+
+    <section class="formblock">
+      <h2><span class="num">3</span> Industries</h2>
+      <p>Leave unticked to rotate through all {{ s.industries|length }} saved industries.</p>
+      <div class="picks sm">{% for ind in s.industries %}{{ pick('industries', ind, ind, false) }}{% endfor %}</div>
+      <input type="text" name="industries_other" placeholder="Other industries, comma-separated (e.g. agritech, gaming)" style="margin-top:12px" aria-label="Other industries">
+    </section>
+
+    <section class="formblock">
+      <h2><span class="num">4</span> Budget</h2>
+      <p>One assignment is one focused search session (typically 2–3 minutes). This is the main lever on how much of your plan a run uses.</p>
+      <div class="row" style="max-width:560px">
+        <div class="field"><label for="assignments">Assignments in this run</label>
+          <input id="assignments" type="number" name="assignments" min="1" max="40" value="{{ [s.max_batches_per_run, 40]|min }}"></div>
+        <div class="field"><label for="max_leads">Stop after this many new leads</label>
+          <input id="max_leads" type="number" name="max_leads" min="1" max="500" placeholder="no cap (daily limit {{ s.daily_target }})">
+          <div class="hint">Verified + web-verified. Leave empty to run all assignments.</div></div>
+        <div class="field" style="align-self:center;margin-top:18px"><label class="check"><input type="checkbox" name="revisit" checked> Also re-check research-queue items</label></div>
+      </div>
+      <div class="field"><label class="check"><input type="checkbox" name="email_report" {{ 'checked' if s.email_after_run }}> Email the report with the Excel export when this run finishes</label>
+        <div class="hint">{% if s.email_recipients %}Goes to {{ s.email_recipients|join(', ') }}.{% else %}Add recipients under Settings → Email &amp; report first.{% endif %}
+          The run also stops once today's daily lead limit ({{ s.daily_target }}) is reached.</div></div>
+    </section>
+
+    <div class="toolbar" style="padding-top:8px;border-top:1px solid var(--border)">
+      <button class="btn primary" style="min-height:44px">{{ icon('play', 15) }} Start research run</button>
+      <span class="small muted">Nothing is emailed to leads — only your internal report.</span>
+    </div>
+  </form>
+
+  <div class="stack sticky-card">
+    <div class="card">
+      <h2>How focus saves tokens</h2>
+      <ol class="steps">
+        <li><span><b>Fewer combinations</b>Only the countries, cities and industries you tick are planned.</span></li>
+        <li><span><b>Sharper searches</b>Your city is added to every query, and other cities are dropped after one quick check.</span></li>
+        <li><span><b>Hard budget</b>The run stops after the number of assignments you set.</span></li>
+      </ol>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Saved defaults</h2>{% if user.role == 'admin' %}<a class="small" href="/settings?tab=research">Edit →</a>{% endif %}</div>
+      <table class="kv">
+        <tr><th>Countries</th><td>{% for c in J.expand_markets(s.target_markets or ['US']) %}{{ J.name(c) }}{{ ', ' if not loop.last }}{% endfor %}</td></tr>
+        <tr><th>Indian focus</th><td>{{ s.indian_states|join(', ') }}</td></tr>
+        <tr><th>Assignments</th><td>{{ s.max_batches_per_run }}</td></tr>
+      </table>
+      <form method="post" action="/runs" style="margin-top:14px"><input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button class="btn" style="width:100%">{{ icon('bolt', 15) }} Quick run with saved defaults</button></form>
+      <div class="hint">Scheduled daily runs always use these defaults.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

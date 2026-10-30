@@ -1,0 +1,76 @@
+# Production stack: Postgres + web portal + background worker + Caddy (automatic HTTPS).
+#   cp .env.example .env   # fill it in
+#   docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: afportal
+      POSTGRES_USER: afportal
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U afportal -d afportal"]
+      interval: 10s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://afportal:${POSTGRES_PASSWORD}@db:5432/afportal
+    depends_on:
+      db: { condition: service_healthy }
+    volumes:
+      - appdata:/data
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://afportal:${POSTGRES_PASSWORD}@db:5432/afportal
+    depends_on:
+      db: { condition: service_healthy }
+    volumes:
+      - appdata:/data
+    healthcheck:
+      disable: true
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [web]
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    # Nightly logical backup at 02:15 container time, 14 days retained.
+    command:
+      - |
+        while true; do
+          now=$$(date +%H%M); if [ "$$now" = "0215" ]; then
+            pg_dump -h db -U afportal -d afportal -Fc -f /backups/afportal-$$(date +%Y%m%d).dump &&
+            find /backups -name 'afportal-*.dump' -mtime +14 -delete; sleep 60; fi; sleep 30; done
+    depends_on:
+      db: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  appdata:
+  caddydata:

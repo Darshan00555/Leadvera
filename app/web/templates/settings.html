@@ -1,0 +1,165 @@
+{% extends "base.html" %}{% from "_macros.html" import icon, market_picker, place_picker %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">{{ icon('settings', 14) }} Administration</div><h1>Workspace settings</h1><p>Changes apply from the worker's next check (within a minute). Every change is audit-logged.</p></div></div>
+<div class="tabs">
+  {% for t, l, ic in [('schedule','General','calendar'), ('email','Email & report','mail'), ('research','Research engine','bolt'), ('data','India master data','database')] %}
+  <a href="/settings?tab={{ t }}" class="{{ 'active' if tab == t }}">{{ icon(ic, 16) }} {{ l }}</a>{% endfor %}
+</div>
+
+{% if tab == 'schedule' %}
+<form method="post" action="/settings" class="card" style="max-width:760px">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="tab" value="schedule">
+  <h2>Workspace</h2>
+  <div class="row">
+    <div class="field"><label>Workspace name</label><input type="text" name="brand_name" value="{{ s.brand_name }}" maxlength="40" required>
+      <div class="hint">Shown in the sidebar, sign-in page, report emails and export file names.</div></div>
+    <div class="field"><label>Tagline</label><input type="text" name="brand_tagline" value="{{ s.brand_tagline }}" maxlength="80"></div>
+  </div>
+  <h2 class="formsection">Daily schedule</h2>
+  <div class="field"><label class="check"><input type="checkbox" name="schedule_enabled" {{ 'checked' if s.schedule_enabled }}> Run research and send the report automatically every day</label></div>
+  <div class="row">
+    <div class="field"><label>Time zone</label><input type="text" name="timezone" value="{{ s.timezone }}"><div class="hint">IANA name, e.g. Asia/Kolkata</div></div>
+    <div class="field"><label>Research starts at</label><input type="time" name="research_start_time" value="{{ s.research_start_time }}"><div class="hint">Leave ~2–3 h before the report.</div></div>
+    <div class="field"><label>Report email at</label><input type="time" name="report_time" value="{{ s.report_time }}"></div>
+    <div class="field"><label>Wait for a running job (min)</label><input type="number" min="0" max="600" name="report_wait_minutes" value="{{ s.report_wait_minutes }}"><div class="hint">After this, an interim report is sent and the final one follows when research finishes.</div></div>
+  </div>
+  <div class="field"><label>Run on</label><div class="toolbar">
+    {% for i, d in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+    <label class="check"><input type="checkbox" name="run_days" value="{{ i }}" {{ 'checked' if i in s.run_days }}> {{ d }}</label>{% endfor %}</div></div>
+  <button class="btn primary">Save general settings</button>
+</form>
+
+{% elif tab == 'email' %}
+<div class="grid g32">
+<form method="post" action="/settings" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="tab" value="email">
+  <h2>Report recipients</h2>
+  <div class="field"><label>To</label><textarea name="email_recipients" rows="2" placeholder="you@company.com, team@company.com">{{ s.email_recipients|join(', ') }}</textarea></div>
+  <div class="field"><label>Cc</label><input type="text" name="email_cc" value="{{ s.email_cc|join(', ') }}"></div>
+  <div class="row">
+    <div class="field"><label>Subject prefix</label><input type="text" name="email_subject_prefix" value="{{ s.email_subject_prefix }}"></div>
+  </div>
+  <div class="field"><label class="check"><input type="checkbox" name="email_attach_workbook" {{ 'checked' if s.email_attach_workbook }}> Attach the full Excel workbook (all sheets)</label></div>
+  <div class="field"><label class="check"><input type="checkbox" name="email_alert_on_failure" {{ 'checked' if s.email_alert_on_failure }}> Email an alert immediately if a run fails</label></div>
+  <div class="field"><label class="check"><input type="checkbox" name="email_after_run" {{ 'checked' if s.email_after_run }}> Email the report (with the Excel export) as soon as a manual / test run finishes</label>
+    <div class="hint">Scheduled runs are covered by the daily report at {{ s.report_time }}. Each run's launch page can switch this off for that run.</div></div>
+  <h2 style="margin-top:20px">Outgoing mail server (SMTP)</h2>
+  <div class="row">
+    <div class="field"><label>SMTP host</label><input type="text" name="smtp_host" value="{{ s.smtp_host }}" placeholder="smtp.gmail.com"></div>
+    <div class="field"><label>Port</label><input type="number" name="smtp_port" value="{{ s.smtp_port }}"></div>
+    <div class="field"><label>Security</label><select name="smtp_security">{% for v, l in [('starttls','STARTTLS (587)'), ('ssl','SSL/TLS (465)'), ('none','None (not recommended)')] %}<option value="{{ v }}" {{ 'selected' if s.smtp_security == v }}>{{ l }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>Username</label><input type="text" name="smtp_username" value="{{ s.smtp_username }}" autocomplete="off"></div>
+    <div class="field"><label>Password / API key</label><input type="password" name="smtp_password" value="" placeholder="{{ 'saved — leave blank to keep' if s.smtp_password else '' }}" autocomplete="new-password"><div class="hint">Stored encrypted.</div></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>From email</label><input type="email" name="smtp_from_email" value="{{ s.smtp_from_email }}"></div>
+    <div class="field"><label>From name</label><input type="text" name="smtp_from_name" value="{{ s.smtp_from_name }}"></div>
+  </div>
+  <button class="btn primary">Save email settings</button>
+</form>
+<div class="stack">
+  <div class="card"><h2>Send a test</h2><p class="small muted">Save first, then send a test to the recipients above.</p>
+    <form method="post" action="/settings/test-email"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn">Send test email</button></form></div>
+  <div class="card small"><h2>Provider settings</h2>
+    <table class="kv">
+      <tr><th>Google Workspace / Gmail</th><td>smtp.gmail.com · 587 STARTTLS · username = your address · password = an <b>App Password</b> (needs 2-Step Verification)</td></tr>
+      <tr><th>Microsoft 365</th><td>smtp.office365.com · 587 STARTTLS · SMTP AUTH must be enabled for the mailbox</td></tr>
+      <tr><th>Zoho Mail</th><td>smtp.zoho.in (India DC) · 465 SSL</td></tr>
+      <tr><th>Amazon SES</th><td>email-smtp.&lt;region&gt;.amazonaws.com · 587 · SMTP credentials from the SES console</td></tr>
+      <tr><th>SendGrid</th><td>smtp.sendgrid.net · 587 · username <code>apikey</code> · password = API key</td></tr>
+    </table>
+    <p class="muted">For best deliverability send from your own domain with SPF, DKIM and DMARC set up.</p></div>
+</div>
+</div>
+
+{% elif tab == 'research' %}
+<form method="post" action="/settings" class="card" style="max-width:900px">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="tab" value="research">
+  <h2>How research is billed</h2>
+  <div class="field">
+    <label class="check"><input type="radio" name="research_backend" value="claude_code" {{ 'checked' if s.research_backend == 'claude_code' or (s.research_backend != 'api' and s.research_backend != 'gemini') }}>
+      <b>My Claude subscription (Pro / Max)</b> — runs Claude Code headless; uses your plan's usage limits, no API bill</label>
+    <label class="check" style="margin-top:6px"><input type="radio" name="research_backend" value="gemini" {{ 'checked' if s.research_backend == 'gemini' }}>
+      <b>Google Gemini API (Pro / Flash)</b> — uses Gemini 2.0 / 1.5; generous free tier (1,500 requests/day free at aistudio.google.com)</label>
+    <label class="check" style="margin-top:6px"><input type="radio" name="research_backend" value="api" {{ 'checked' if s.research_backend == 'api' }}>
+      <b>Anthropic API key</b> — pay per use from console.anthropic.com; no plan usage limits</label>
+  </div>
+  <div class="card" style="background:var(--surface-2);box-shadow:none;margin-bottom:16px">
+    <h2>Google Gemini API (only if selected above)</h2>
+    <div class="row">
+      <div class="field"><label>Gemini API key</label>
+        {% if env_gemini_key %}<input type="text" value="Set via GEMINI_API_KEY environment variable" disabled>
+        {% else %}<input type="password" name="gemini_api_key" placeholder="{{ 'saved — leave blank to keep' if s.gemini_api_key else 'AIzaSy…' }}" autocomplete="new-password">{% endif %}
+        <div class="hint">From <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--primary);text-decoration:underline">aistudio.google.com</a>. Free tier includes 1,500 daily requests. Stored encrypted.</div></div>
+      <div class="field"><label>Model</label><select name="gemini_model">{% for m, l in [('gemini-3.5-flash','Gemini 3.5 Flash (Recommended — Stable, Fast &amp; Free Tier)'), ('gemini-3.1-flash-lite','Gemini 3.1 Flash Lite (Fastest &amp; Ultra-Lightweight)'), ('gemini-3.8-flash','Gemini 3.8 Flash (High demand spikes possible)'), ('gemini-flash-latest','Gemini Flash Latest'), ('gemini-3.1-pro-preview','Gemini 3.1 Pro (Requires Paid/Billing Account in AI Studio)'), ('gemini-pro-latest','Gemini Pro Latest (Requires Paid/Billing Account in AI Studio)')] %}<option value="{{ m }}" {{ 'selected' if s.gemini_model == m }}>{{ l }}</option>{% endfor %}</select></div>
+    </div>
+  </div>
+  <div class="card" style="background:var(--surface-2);box-shadow:none;margin-bottom:16px">
+    <h2>Claude subscription (Claude Code)</h2>
+    <p class="small">Claude Code CLI: {% if claude_cli %}<span class="badge good">found</span> <code>{{ claude_cli }}</code>{% else %}<span class="badge bad">not found</span> — use the Docker setup (it includes Claude Code) or install it with <code>npm install -g @anthropic-ai/claude-code</code>{% endif %}</p>
+    <div class="row">
+      <div class="field"><label>Subscription token</label>
+        {% if env_cc_token %}<input type="text" value="Set via CLAUDE_CODE_OAUTH_TOKEN environment variable" disabled>
+        {% else %}<input type="password" name="claude_code_oauth_token" placeholder="{{ 'saved — leave blank to keep' if s.claude_code_oauth_token else 'sk-ant-oat01-…' }}" autocomplete="new-password">{% endif %}
+        <div class="hint">Create it once: run <b>connect-claude.bat</b> (Windows) or <code>./connect-claude.sh</code>, sign in with your Claude account in the browser, and paste the token here. Stored encrypted.</div></div>
+      <div class="field"><label>Model</label><select name="claude_code_model">{% for m, l in [('haiku','Haiku (cheapest — most leads per credit)'), ('sonnet','Sonnet (recommended for Pro)'), ('opus','Opus (uses limits faster)'), ('fable','Fable (Max plans only)')] %}<option value="{{ m }}" {{ 'selected' if s.claude_code_model == m }}>{{ l }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Effort</label><select name="claude_code_effort">{% for e, l in [('low','Low — fast, fewer searches, more leads per credit'), ('medium','Medium — balanced (recommended)'), ('high','High — deep research, fewer but higher quality leads')] %}<option value="{{ e }}" {{ 'selected' if s.claude_code_effort == e }}>{{ l }}</option>{% endfor %}</select><div class="hint">Controls how deeply Claude researches each company before moving on.</div></div>
+      <div class="field"><label>Time limit per assignment (min)</label><input type="number" min="5" max="120" name="claude_code_batch_minutes" value="{{ s.claude_code_batch_minutes }}"></div>
+    </div>
+    <p class="small muted">Pro plans have a usage limit that resets every few hours and is shared with your normal Claude use. When it is reached the run stops cleanly, keeps everything found so far, and the report says so.</p>
+  </div>
+  <h2>Anthropic API (only if selected above)</h2>
+  <div class="row">
+    <div class="field"><label>Anthropic API key</label>
+      {% if env_api_key %}<input type="text" value="Set via ANTHROPIC_API_KEY environment variable" disabled>
+      {% else %}<input type="password" name="anthropic_api_key" placeholder="{{ 'saved — leave blank to keep' if s.anthropic_api_key else 'sk-ant-…' }}" autocomplete="new-password">{% endif %}
+      <div class="hint">From console.anthropic.com. Stored encrypted.</div></div>
+    <div class="field"><label>Model</label><select name="model">{% for m, l in [('claude-haiku-5-5','Claude Haiku 5.5 (cheapest — best for budget)'), ('claude-sonnet-5-5','Claude Sonnet 5.5 (balanced)'), ('claude-opus-5-5','Claude Opus 5.5 (most thorough, uses more credits)'), ('claude-fable-5-1','Claude Fable 5.1 (Max plans only)')] %}<option value="{{ m }}" {{ 'selected' if s.model == m }}>{{ l }}</option>{% endfor %}</select></div>
+    <div class="field"><label>Effort</label><select name="effort">{% for e in ['low','medium','high','xhigh','max'] %}<option {{ 'selected' if s.effort == e }}>{{ e }}</option>{% endfor %}</select><div class="hint">Higher = more thorough and more tokens.</div></div>
+  </div>
+  <h2 style="margin-top:12px">Targets &amp; guardrails</h2>
+  <div class="row">
+    <div class="field"><label>Daily lead limit</label><input type="number" min="1" max="1000" name="daily_target" value="{{ s.daily_target }}">
+      <div class="hint">Research stops for the day once this many new verified + web-verified leads were found (all runs together).</div></div>
+    <div class="field"><label>Cost cap per run (USD)</label><input type="number" step="0.5" min="1" name="max_cost_usd_per_run" value="{{ s.max_cost_usd_per_run }}"></div>
+    <div class="field"><label>Time limit per run (min)</label><input type="number" min="10" name="max_run_minutes" value="{{ s.max_run_minutes }}"></div>
+    <div class="field"><label>Assignments per run</label><input type="number" min="1" name="max_batches_per_run" value="{{ s.max_batches_per_run }}"></div>
+    <div class="field"><label>Turns per assignment</label><input type="number" min="3" name="max_turns_per_batch" value="{{ s.max_turns_per_batch }}"></div>
+    <div class="field"><label>Web searches per assignment</label><input type="number" min="1" name="web_search_max_uses_per_batch" value="{{ s.web_search_max_uses_per_batch }}"></div>
+    <div class="field"><label>Page fetches per assignment</label><input type="number" min="1" name="web_fetch_max_uses_per_batch" value="{{ s.web_fetch_max_uses_per_batch }}"></div>
+    <div class="field"><label>Queue items revisited per run</label><input type="number" min="0" name="revisit_queue_per_run" value="{{ s.revisit_queue_per_run }}"></div>
+  </div>
+  <h2 class="formsection">Default targeting <span class="small muted" style="font-weight:500">— used by scheduled runs and “Quick run”. Individual runs can narrow it on the launch page.</span></h2>
+  <input type="hidden" name="targeting_form" value="1">
+  <div class="field"><label>Where the overseas company is registered</label>{{ market_picker('target_markets', s.target_markets) }}</div>
+  <div class="field"><label>U.S. states (2-letter, only used when United States is chosen)</label><textarea name="us_states" rows="2">{{ s.us_states|join(', ') }}</textarea></div>
+  <div class="field"><label>Indian focus — cities &amp; states</label>{{ place_picker('indian_states', s.indian_states) }}</div>
+  <div class="field"><label>Industries</label><textarea name="industries" rows="3">{{ s.industries|join(', ') }}</textarea></div>
+  <div class="row">
+    <div class="field"><label>Never fetch these domains</label><textarea name="blocked_domains" rows="2" placeholder="example.com">{{ s.blocked_domains|join(', ') }}</textarea></div>
+    <div class="field"><label>Default owner for new leads (email)</label><input type="text" name="default_owner" value="{{ s.default_owner }}"></div>
+  </div>
+  <button class="btn primary">Save research settings</button>
+</form>
+
+{% elif tab == 'data' %}
+<div class="grid g32">
+<form method="post" action="/settings/india-import" enctype="multipart/form-data" class="card">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <h2>Import Indian company master data</h2>
+  <p class="small">Currently loaded: <b>{{ '{:,}'.format(india_count) }}</b> companies. The research agent checks this table first, so Indian registration is verified against official data without extra web requests.</p>
+  <div class="field"><label>CSV file</label><input type="file" name="file" accept=".csv,text/csv" required></div>
+  <div class="field"><label>Source page URL</label><input type="url" name="source_url" placeholder="https://www.data.gov.in/catalog/company-master-data" required>
+    <div class="hint">The mca.gov.in or data.gov.in page the file was downloaded from. It is cited as the registry evidence for matched leads.</div></div>
+  <button class="btn primary">Import</button>
+</form>
+<div class="card small"><h2>Where to get it</h2>
+  <p>data.gov.in publishes state-wise <b>Company Master Data</b> CSVs from the Ministry of Corporate Affairs (CIN, name, status, class, registration date, state, activity). Download the states you target and import each file. Re-importing updates existing rows by CIN.</p>
+  <p>Large files (hundreds of MB) are better loaded on the server with:<br><code>python -m app.cli import-india file.csv --source URL</code></p>
+</div>
+</div>
+{% endif %}
+{% endblock %}

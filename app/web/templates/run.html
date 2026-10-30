@@ -1,0 +1,66 @@
+{% extends "base.html" %}{% from "_macros.html" import run_badge, icon %}
+{% block title %}Run #{{ run.id }}{% endblock %}
+{% block content %}
+{% set s = stats or run.stats or {} %}
+<div class="pagehead">
+  <div><div class="eyebrow"><a href="/runs">Runs &amp; reports</a> <span class="muted">/ #{{ run.id }}</span></div>
+    <h1 style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">Run #{{ run.id }} {{ run_badge(run.status) }}</h1>
+    {% if run.targets %}<div class="focus-chips" style="margin:10px 0 2px"><span class="badge info plain">{{ icon('coverage', 13) }} Focus</span>{% for part in (run.targets|describe_targets).split(' · ') %}<span class="badge plain">{{ part }}</span>{% endfor %}</div>{% endif %}
+    <p>{{ run.run_date }} · {{ run.trigger }} · started {{ run.started_at|dt(tzname) or 'not yet' }}{% if run.finished_at %} · finished {{ run.finished_at|dt(tzname) }}{% endif %}</p></div>
+  <div class="toolbar">
+    {% if run.status in ('queued', 'running') %}
+    <form method="post" action="/runs/{{ run.id }}/cancel" data-confirm="Stop this run? Leads already saved are kept."><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn danger">Cancel run</button></form>
+    {% endif %}
+    <form method="post" action="/runs/{{ run.id }}/send-report"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="btn">{{ icon('mail', 16) }} Email report now</button></form>
+  </div>
+</div>
+
+<div class="grid g4" {% if run.status in ('queued', 'running') %}data-live-run="{{ run.id }}"{% endif %}>
+  <div class="card tile"><div class="head"><span class="label">New verified leads</span><span class="ic good">{{ icon('verified', 19) }}</span></div><div class="value" data-k="new_verified">{{ s.get('new_verified', 0) }}</div><div class="sub">A {{ s.get('A', 0) }} · B {{ s.get('B', 0) }} · C {{ s.get('C', 0) }}</div></div>
+  <div class="card tile"><div class="head"><span class="label">Candidates examined</span><span class="ic">{{ icon('search', 19) }}</span></div><div class="value" data-k="candidates">{{ s.get('candidates', 0) }}</div><div class="sub">{{ s.get('partial', 0) }} partial · {{ s.get('duplicates', 0) }} duplicates · {{ s.get('disqualified', 0) }} disqualified</div></div>
+  <div class="card tile"><div class="head"><span class="label">New web-verified leads</span><span class="ic info">{{ icon('globe', 19) }}</span></div><div class="value" data-k="web_verified">{{ s.get('web_verified', 0) }}</div><div class="sub">Cited online · est. cost $<span data-k="cost">{{ '%.2f'|format(run.cost_usd or 0) }}</span>{% if run.targets and run.targets.max_leads %} · stops at {{ run.targets.max_leads }} leads{% endif %}</div></div>
+  <div class="card tile"><div class="head"><span class="label">Status</span><span class="ic warn">{{ icon('runs', 19) }}</span></div><div class="value" style="font-size:20px;margin-top:14px;text-transform:capitalize" data-k="status">{{ run.status }}</div><div class="sub">{{ s.get('stop_reason', '') }}</div></div>
+
+<div class="card" style="margin-top:18px"{% if not recent and run.status not in ('queued', 'running') %} hidden{% endif %}>
+  <div class="card-head"><h2>Found in this run</h2>{% if run.status in ('queued', 'running') %}<span class="badge info live">updates live</span>{% endif %}</div>
+  <div class="list" data-live-recent>
+    {% for f in recent %}<div class="item"><span class="avatar co">{{ (f.name or f.overseas)|initials }}</span>
+      <div style="flex:1;min-width:0"><a href="/leads/{{ f.id }}" style="font-weight:600">{{ f.name or f.overseas }}</a><div class="small muted">{{ f.lead_id }} · {{ f.overseas }} · {{ 'UK' if f.country == 'GB' else f.country }}</div></div>
+      <span class="badge {{ 'good' if f.status == 'Verified' else ('info' if f.status == 'Web-verified' else '') }}">{{ f.status }}</span></div>
+    {% else %}<div class="small muted">Nothing saved yet — the first finds appear here within a few minutes.</div>{% endfor %}
+  </div>
+</div>
+</div>
+
+<div class="grid g2" style="margin-top:16px">
+  <div class="card"><h2>Run metrics</h2>
+    <table class="kv metrics">
+      {% for k, label in [('candidates','Total candidates discovered'), ('indian_verified','Indian registrations verified'), ('us_verified','U.S. LLC registrations verified'), ('relationships_verified','Entity relationships verified'), ('new_verified','New verified leads added'), ('promoted','Promoted from research queue'), ('partial','Partially verified'), ('unverified','Unverified'), ('web_verified','New web-verified leads'), ('duplicates','Duplicates / possible duplicates'), ('disqualified','Disqualified'), ('with_decision_maker','New leads with decision-maker'), ('with_contact','New leads with contact channel'), ('updated','Records updated'), ('total_verified','Cumulative verified leads')] %}
+      <tr><th>{{ label }}</th><td class="num">{{ s.get(k, 0) }}</td></tr>{% endfor %}
+      <tr><th>Errors</th><td class="num">{{ (run.errors or [])|length }}</td></tr>
+      <tr><th>Blocked sources</th><td class="num">{{ (run.blocked_sources or [])|length }}</td></tr>
+    </table>
+  </div>
+  <div class="card"><h2>Recommendations for tomorrow</h2>
+    {% if run.recommendations %}<ol>{% for r in run.recommendations %}<li style="margin-bottom:6px">{{ r }}</li>{% endfor %}</ol>{% else %}<div class="muted small">Generated when the run finishes.</div>{% endif %}
+    {% if run.blocked_sources %}<h2 style="margin-top:16px">Blocked / restricted sources</h2><ul class="small">{% for b in run.blocked_sources %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+    {% if run.errors %}<h2 style="margin-top:16px">Errors</h2><ul class="small">{% for e in run.errors[-20:] %}<li class="wrap">{{ e }}</li>{% endfor %}</ul>{% endif %}
+    {% if emails %}<h2 style="margin-top:16px">Emails</h2>{% for e in emails %}<div class="small">{{ e.at|dt(tzname) }} · {{ e.kind }} · <span class="badge {{ 'good' if e.status == 'sent' else 'bad' }}">{{ e.status }}</span> {{ e.recipients }}{% if e.error %}<div class="muted">{{ e.error }}</div>{% endif %}</div>{% endfor %}{% endif %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px"><h2>Assignments in this run</h2>
+  {% if cov %}<div class="tablewrap"><table class="data">
+    <tr><th>Assignment</th><th class="num">Queries</th><th class="num">Candidates</th><th class="num">Verified</th><th>Sources</th></tr>
+    {% for c in cov %}<tr><td class="mono small">{{ c.query_group }}</td><td class="num">{{ c.queries_run }}</td><td class="num">{{ c.candidates_yielded }}</td><td class="num"><b>{{ c.verified_yielded }}</b></td><td class="small clip" title="{{ c.sources }}">{{ c.sources }}</td></tr>{% endfor %}
+  </table></div>{% else %}<div class="muted small">None yet.</div>{% endif %}
+</div>
+
+<div class="card" style="margin-top:16px"><h2>Live log</h2><div class="logbox" id="runlog">{{ (run.log or [])[-200:]|join('\n') }}</div></div>
+
+<div class="card" style="margin-top:16px"><h2>Report preview</h2>
+  <iframe class="reportframe" src="/runs/{{ run.id }}/report" sandbox title="Report preview"></iframe></div>
+
+{% if run.queries %}<div class="card" style="margin-top:16px"><details><summary><b>Search queries executed ({{ run.queries|length }})</b></summary>
+  <ul class="small mono">{% for q in run.queries %}<li>{{ q }}</li>{% endfor %}</ul></details></div>{% endif %}
+{% endblock %}

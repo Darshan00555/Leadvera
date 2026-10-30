@@ -1,0 +1,12 @@
+{% extends "base.html" %}{% from "_macros.html" import icon %}
+{% block title %}Email log{% endblock %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">{{ icon('mail', 14) }} Research</div><h1>Email log</h1><p>Every report, alert and test email the portal tried to send.</p></div></div>
+{% if rows %}<div class="tablewrap"><table class="data">
+  <tr><th>When</th><th>Kind</th><th>Status</th><th>Recipients</th><th>Subject</th><th class="num">Attempts</th><th>Error</th></tr>
+  {% for e in rows %}<tr><td class="small">{{ e.at|dt(tzname) }}</td><td>{{ e.kind }}</td>
+    <td><span class="badge {{ 'good' if e.status == 'sent' else 'bad' }}">{{ e.status }}</span></td>
+    <td class="small wrap" style="max-width:240px">{{ e.recipients }}</td><td class="small">{% if e.run_id %}<a href="/runs/{{ e.run_id }}">{{ e.subject }}</a>{% else %}{{ e.subject }}{% endif %}</td>
+    <td class="num">{{ e.attempts }}</td><td class="small wrap" style="max-width:300px">{{ e.error or '' }}</td></tr>{% endfor %}
+</table></div>{% else %}<div class="card empty"><div class="ic">{{ icon('mail', 24) }}</div>No emails sent yet.</div>{% endif %}
+{% endblock %}

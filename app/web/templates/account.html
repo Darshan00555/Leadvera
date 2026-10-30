@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% from "_macros.html" import icon %}{% block title %}Account{% endblock %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">{{ icon('user', 14) }} Account</div><h1>Your account</h1><p>{{ user.email }} · role: {{ user.role }}</p></div></div>
+<div class="card" style="max-width:520px">
+  <h2>Change password</h2>
+  <form method="post" action="/account/password">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="field"><label>Current password</label><input type="password" name="current" autocomplete="current-password" required></div>
+    <div class="field"><label>New password</label><input type="password" name="new" autocomplete="new-password" required>
+      <div class="hint">At least 12 characters, mixed case and a digit.</div></div>
+    <button class="btn primary">Update password</button>
+  </form>
+</div>
+{% endblock %}

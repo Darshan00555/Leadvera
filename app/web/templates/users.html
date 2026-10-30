@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% from "_macros.html" import icon %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">{{ icon('users', 14) }} Administration</div><h1>Users</h1><p><b>Admin</b>: everything · <b>Analyst</b>: research runs, queue, exclusions, exports · <b>Sales</b>: leads and pipeline.</p></div></div>
+<div class="grid g32">
+  <div class="tablewrap"><table class="data">
+    <tr><th>User</th><th>Role</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr>
+    {% for u in rows %}
+    <tr><td><b>{{ u.name or u.email }}</b><div class="muted small">{{ u.email }}</div></td>
+      <td><form method="post" action="/users/{{ u.id }}" class="inline" style="display:flex;gap:6px"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="action" value="role">
+        <select name="role" aria-label="Role">{% for r in ['admin', 'analyst', 'sales'] %}<option {{ 'selected' if u.role == r }}>{{ r }}</option>{% endfor %}</select><button class="btn sm">Set</button></form></td>
+      <td>{% if u.active %}<span class="badge good">active</span>{% else %}<span class="badge bad">disabled</span>{% endif %}{% if u.locked_until and u.locked_until > now() %} <span class="badge warn">locked</span>{% endif %}</td>
+      <td class="small">{{ u.last_login_at|dt(tzname) or 'never' }}</td>
+      <td class="toolbar">
+        <form method="post" action="/users/{{ u.id }}" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <input type="hidden" name="action" value="{{ 'deactivate' if u.active else 'activate' }}"><button class="btn sm {{ 'danger' if u.active }}">{{ 'Disable' if u.active else 'Enable' }}</button></form>
+        <form method="post" action="/users/{{ u.id }}" class="inline" style="display:flex;gap:6px"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="action" value="password">
+          <input type="password" name="password" placeholder="New password" autocomplete="new-password" style="width:150px" required><button class="btn sm">Reset</button></form>
+      </td></tr>
+    {% endfor %}
+  </table></div>
+  <div class="card"><h2>Add user</h2>
+    <form method="post" action="/users"><input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="field"><label>Name</label><input type="text" name="name"></div>
+      <div class="field"><label>Email</label><input type="email" name="email" required></div>
+      <div class="field"><label>Role</label><select name="role"><option>sales</option><option>analyst</option><option>admin</option></select></div>
+      <div class="field"><label>Temporary password</label><input type="password" name="password" autocomplete="new-password" required><div class="hint">12+ characters, mixed case and a digit. Ask them to change it under Account.</div></div>
+      <button class="btn primary">Create user</button></form></div>
+</div>
+{% endblock %}

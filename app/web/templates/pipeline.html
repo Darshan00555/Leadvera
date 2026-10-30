@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% from "_macros.html" import pri, icon, empty %}
+{% block title %}Sales pipeline{% endblock %}
+{% block content %}
+<div class="pagehead"><div><div class="eyebrow">{{ icon('pipeline', 14) }} Sales</div><h1>Sales pipeline</h1><p>Open estimated MRR: <b>${{ '{:,.0f}'.format(mrr or 0) }}</b>/month</p></div></div>
+<div class="kanban">
+  <a href="/pipeline" class="{{ 'active' if not f.stage }}">All</a>
+  {% for s in stages %}<a href="/pipeline?stage={{ s|urlencode }}" class="{{ 'active' if f.stage == s }}">{{ s }} · {{ counts.get(s, 0) }}</a>{% endfor %}
+</div>
+{% if rows %}
+<div class="tablewrap"><table class="data">
+  <tr><th>Pri</th><th>Company</th><th>Owner</th><th>Stage</th><th>Channel</th><th>Last contact</th><th>Next follow-up</th><th class="num">Est. MRR</th><th>Meeting</th><th></th></tr>
+  {% for p, l in rows %}
+  <tr>
+    <td>{{ pri(l.priority) }}</td>
+    <td><div class="cell-co"><span class="avatar co">{{ (l.indian_brand_name or l.indian_legal_name)|initials }}</span><div><a href="/leads/{{ l.id }}">{{ l.indian_brand_name or l.indian_legal_name }}</a><div class="muted small">{{ l.us_llc_legal_name }} ({{ l.us_state }})</div></div></div></td>
+    <td>{{ p.lead_owner or '—' }}</td>
+    <td><form method="post" action="/pipeline/{{ p.id }}" class="inline" style="display:flex;gap:6px">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="back" value="/pipeline?stage={{ f.stage|urlencode }}">
+        <input type="hidden" name="meeting_booked" value="{{ 'on' if p.meeting_booked else '' }}">
+        <select name="opportunity_stage" aria-label="Stage" style="min-width:150px">{% for s in stages %}<option {{ 'selected' if p.opportunity_stage == s }}>{{ s }}</option>{% endfor %}</select>
+        <input type="date" name="next_follow_up" value="{{ p.next_follow_up or '' }}" aria-label="Next follow-up" style="width:150px">
+        <button class="btn sm">Save</button></form></td>
+    <td>{{ p.channel or '' }}</td><td class="small">{{ p.last_contact or '' }}</td>
+    <td class="small">{% if p.next_follow_up %}{% if p.next_follow_up < now().date() %}<span class="badge bad">overdue</span> {% endif %}{{ p.next_follow_up }}{% endif %}</td>
+    <td class="num">{{ '{:,.0f}'.format(p.est_mrr_usd) if p.est_mrr_usd else '' }}</td>
+    <td>{{ '✓' if p.meeting_booked else '' }}</td>
+    <td><a class="btn sm" href="/leads/{{ l.id }}">Open</a></td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}{{ empty('pipeline', 'No pipeline entries yet', 'Every verified lead gets a pipeline entry automatically.') }}{% endif %}
+{% endblock %}

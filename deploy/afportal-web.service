@@ -1,0 +1,15 @@
+# Alternative to Docker: systemd units for a plain Ubuntu VPS (see docs/DEPLOYMENT.md).
+[Unit]
+Description=Leadvera (web)
+After=network.target postgresql.service
+
+[Service]
+User=afportal
+WorkingDirectory=/opt/afportal
+EnvironmentFile=/opt/afportal/.env
+ExecStart=/opt/afportal/venv/bin/uvicorn app.web.main:app --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
